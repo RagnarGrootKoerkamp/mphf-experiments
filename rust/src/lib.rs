@@ -169,11 +169,18 @@ type PtrHashCompact = ptr_hash::PtrHash<
     ptr_hash::hash::Xx64,
     Vec<u8>,
 >;
+type PtrHashDefault = PtrHashCompact;
+
+pub enum PtrHash {
+    None,
+    Fast(PtrHashFast),
+    Compact(PtrHashCompact),
+    Default(PtrHashDefault),
+}
+
 pub struct PtrHashWrapper {
     vector: Vec<Key>,
-    compact: bool,
-    ptr_hash_fast: PtrHashFast,
-    ptr_hash_compact: PtrHashCompact,
+    ptr_hash: PtrHash,
 }
 
 #[no_mangle]
@@ -183,24 +190,35 @@ pub extern "C" fn createPtrHashStruct(
 ) -> *mut PtrHashWrapper {
     let struct_instance = PtrHashWrapper {
         vector: c_strings_to_slices(len, my_strings),
-        compact: false,
-        ptr_hash_fast: PtrHashFast::default(),
-        ptr_hash_compact: PtrHashCompact::default(),
+        ptr_hash: PtrHash::None,
     };
     let boxx = Box::new(struct_instance);
     Box::into_raw(boxx)
 }
 
 #[no_mangle]
-pub extern "C" fn constructPtrHash(struct_ptr: *mut PtrHashWrapper, compact: bool) {
+pub extern "C" fn constructPtrHash(struct_ptr: *mut PtrHashWrapper, version: usize) {
     let struct_instance = unsafe { &mut *struct_ptr };
-    struct_instance.compact = compact;
-    if !compact {
-        struct_instance.ptr_hash_fast =
-            PtrHashFast::new(&struct_instance.vector[..], PtrHashParams::default());
-    } else {
-        struct_instance.ptr_hash_compact =
-            PtrHashCompact::new(&struct_instance.vector[..], PtrHashParams::default());
+    match version {
+        0 => {
+            struct_instance.ptr_hash = PtrHash::Fast(PtrHashFast::new(
+                &struct_instance.vector[..],
+                PtrHashParams::default_fast(),
+            ));
+        }
+        1 => {
+            struct_instance.ptr_hash = PtrHash::Compact(PtrHashCompact::new(
+                &struct_instance.vector[..],
+                PtrHashParams::default_compact(),
+            ));
+        }
+        2 => {
+            struct_instance.ptr_hash = PtrHash::Default(PtrHashDefault::new(
+                &struct_instance.vector[..],
+                PtrHashParams::default(),
+            ));
+        }
+        _ => panic!("Invalid version"),
     }
 }
 
@@ -212,10 +230,11 @@ pub extern "C" fn queryPtrHash(
 ) -> u64 {
     let struct_instance = unsafe { &mut *struct_ptr };
     let key: Key = unsafe { slice::from_raw_parts(key_c_s as *const u8, length + 1) };
-    if !struct_instance.compact {
-        struct_instance.ptr_hash_fast.index_minimal(&key) as u64
-    } else {
-        struct_instance.ptr_hash_compact.index_minimal(&key) as u64
+    match struct_instance.ptr_hash {
+        PtrHash::None => panic!("PtrHash not initialized"),
+        PtrHash::Fast(ref mut ptr_hash) => ptr_hash.index_minimal(&key) as u64,
+        PtrHash::Compact(ref mut ptr_hash) => ptr_hash.index_minimal(&key) as u64,
+        PtrHash::Default(ref mut ptr_hash) => ptr_hash.index_minimal(&key) as u64,
     }
 }
 
@@ -233,16 +252,17 @@ pub extern "C" fn queryPtrHashStream(
             *lengths.offset(i as isize) + 1,
         )
     });
-    if !struct_instance.compact {
-        struct_instance
-            .ptr_hash_fast
-            .index_stream::<32, true, _>(keys)
-            .sum::<usize>() as u64
-    } else {
-        struct_instance
-            .ptr_hash_compact
-            .index_stream::<32, true, _>(keys)
-            .sum::<usize>() as u64
+    match struct_instance.ptr_hash {
+        PtrHash::None => panic!("PtrHash not initialized"),
+        PtrHash::Fast(ref mut ptr_hash) => {
+            ptr_hash.index_stream::<32, true, _>(keys).sum::<usize>() as u64
+        }
+        PtrHash::Compact(ref mut ptr_hash) => {
+            ptr_hash.index_stream::<32, true, _>(keys).sum::<usize>() as u64
+        }
+        PtrHash::Default(ref mut ptr_hash) => {
+            ptr_hash.index_stream::<32, true, _>(keys).sum::<usize>() as u64
+        }
     }
 }
 
@@ -250,12 +270,11 @@ pub extern "C" fn queryPtrHashStream(
 pub extern "C" fn sizePtrHash(struct_ptr: *mut PtrHashWrapper) -> usize {
     let struct_instance = unsafe { &mut *struct_ptr };
     use mem_dbg::MemSize;
-    if !struct_instance.compact {
-        return struct_instance.ptr_hash_fast.mem_size(SizeFlags::default());
-    } else {
-        return struct_instance
-            .ptr_hash_compact
-            .mem_size(SizeFlags::default());
+    match struct_instance.ptr_hash {
+        PtrHash::None => panic!("PtrHash not initialized"),
+        PtrHash::Fast(ref ptr_hash) => ptr_hash.mem_size(SizeFlags::default()),
+        PtrHash::Compact(ref ptr_hash) => ptr_hash.mem_size(SizeFlags::default()),
+        PtrHash::Default(ref ptr_hash) => ptr_hash.mem_size(SizeFlags::default()),
     }
 }
 

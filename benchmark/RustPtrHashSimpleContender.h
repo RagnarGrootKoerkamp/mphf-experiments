@@ -7,7 +7,7 @@
 
 extern "C" {
 void* createPtrHashStruct(uint64_t len, const char** str);
-void constructPtrHash(void* rustStruct, bool compact);
+void constructPtrHash(void* rustStruct, const size_t version);
 uint64_t queryPtrHash(void* rustStruct, const char* key, const size_t length);
 uint64_t queryPtrHashStream(void* rustStruct, const char** const keys, const size_t* lengths,
                             const size_t num_keys);
@@ -20,10 +20,10 @@ class RustPtrHashContender : public Contender {
   protected:
 	void* rustStruct = nullptr;
 	const char** data;
-	bool compact;
+	size_t version;
 
   public:
-	RustPtrHashContender(size_t N, bool compact) : Contender(N, 1.0), compact(compact) {
+	RustPtrHashContender(size_t N, size_t version) : Contender(N, 1.0), version(version) {
 		data =
 		    static_cast<const char**>(malloc(std::max(N, Contender::numQueries) * sizeof(char*)));
 	}
@@ -36,7 +36,8 @@ class RustPtrHashContender : public Contender {
 	}
 
 	std::string name() override {
-		return std::string("PtrHash") + " params=" + (compact ? "compact" : "fast");
+		return std::string("PtrHash") +
+		       " params=" + (version == 0 ? "fast" : (version == 1 ? "compact" : "default"));
 	}
 
 	void beforeConstruction(const std::vector<std::string>& keys) override {
@@ -55,7 +56,7 @@ class RustPtrHashContender : public Contender {
 
 	void construct(const std::vector<std::string>& keys) override {
 		(void)keys;
-		constructPtrHash(rustStruct, compact);
+		constructPtrHash(rustStruct, version);
 	}
 
 	size_t sizeBits() override { return sizePtrHash(rustStruct) * 8; }
@@ -80,10 +81,11 @@ class RustPtrHashContenderStream : public RustPtrHashContender {
 	size_t* queryLengths;
 
   public:
-	RustPtrHashContenderStream(size_t N, bool compact) : RustPtrHashContender(N, compact) {}
+	RustPtrHashContenderStream(size_t N, size_t version) : RustPtrHashContender(N, version) {}
 
 	std::string name() override {
-		return std::string("PtrHash-streaming") + " params=" + (compact ? "compact" : "fast");
+		return std::string("PtrHash-streaming") +
+		       " params=" + (version == 0 ? "fast" : (version == 1 ? "compact" : "default"));
 	}
 
 	void beforeQueries(const std::span<std::string> keys) override {

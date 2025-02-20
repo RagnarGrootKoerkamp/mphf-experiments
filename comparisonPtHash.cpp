@@ -41,19 +41,27 @@ int main(int argc, char** argv) {
 		FiPSContender<>(N, 2.0).run();
 	}
 
-	// Fast
+	// Default
 	{
-		RustPtrHashContender(N, false).run();
+		RustPtrHashContender(N, 2).run();
 	}
 	{
-		RustPtrHashContenderStream(N, false).run();
+		RustPtrHashContenderStream(N, 2).run();
+	}
+
+	// Fast
+	{
+		RustPtrHashContender(N, 0).run();
+	}
+	{
+		RustPtrHashContenderStream(N, 0).run();
 	}
 	// Compact
 	{
-		RustPtrHashContender(N, true).run();
+		RustPtrHashContender(N, 1).run();
 	}
 	{
-		RustPtrHashContenderStream(N, true).run();
+		RustPtrHashContenderStream(N, 1).run();
 	}
 
 	{
