@@ -1,6 +1,7 @@
 #include "benchmark/BipartiteShockHashContender.h"
 #include "benchmark/BipartiteShockHashFlatContender.h"
 #include "benchmark/CmphContender.h"
+#include "benchmark/ConsensusContender.h"
 #include "benchmark/DensePartitionedPTHashContender.h"
 #include "benchmark/FiPSContender.h"
 #include "benchmark/PTHashContender.h"
@@ -24,6 +25,13 @@ int main(int argc, char** argv) {
 
 	if(!cmd.process(argc, argv)) {
 		return 1;
+	}
+
+	{
+		ConsensusContender<256, 0.1>(N).run();
+	}
+	{
+		ConsensusContender<512, 0.03>(N).run();
 	}
 
 	{
